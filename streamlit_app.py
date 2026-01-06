@@ -31,7 +31,7 @@ def get_driver():
     return webdriver.Chrome(service=service, options=options)
 
 # UI 및 로직
-st.title("🌐 사이트 통합 저장 도구")
+st.title("🌐 사이트 통합 저장 도구...")
 uploaded_file = st.file_uploader("sites.xlsx 업로드", type=['xlsx'])
 
 if uploaded_file:
@@ -47,3 +47,4 @@ if uploaded_file:
             st.error(f"오류: {e}")
         finally:
             driver.quit()
+
