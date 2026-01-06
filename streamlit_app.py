@@ -124,9 +124,10 @@ if uploaded_file:
                     file_name=f"{base_save_path}.zip",
                     mime="application/zip"
                 )
-            st.success("✨ 모든 작업이 완료되었습니다!")
+            st.success("✨ 모든 작업이 완료되었습니다!!")
 
         except Exception as e:
             st.error(f"❌ 오류 발생: {str(e)}")
         finally:
+
             driver.quit()
