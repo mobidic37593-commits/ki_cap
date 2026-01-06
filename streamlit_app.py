@@ -3,7 +3,9 @@ import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By  # ✅ 누락되었던 By 추가
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.os_manager import ChromeType # ✅ 크롬 타입 지정용
 import time
 import os
 import requests
@@ -17,7 +19,8 @@ def get_driver():
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    # Streamlit Cloud 환경에서 크롬 경로 지정 (중요)
+    
+    # ✅ Streamlit Cloud(Debian) 환경의 크롬 경로 설정
     options.binary_location = "/usr/bin/chromium"
     
     mobile_emulation = {
@@ -26,14 +29,15 @@ def get_driver():
     }
     options.add_experimental_option("mobileEmulation", mobile_emulation)
     
-    # webdriver-manager를 통해 자동으로 드라이버 설치
-    service = Service(ChromeDriverManager().install())
+    # ✅ webdriver-manager가 Chromium을 찾도록 설정
+    driver_path = ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install()
+    service = Service(driver_path)
+    
     return webdriver.Chrome(service=service, options=options)
 
-# --- UI 구성 ---
+# --- 이하 로직은 동일 (By 모듈 오류 수정 포함) ---
 st.set_page_config(page_title="Site Capture Tool", layout="wide")
 st.title("🌐 사이트 HTML & 이미지 통합 저장 도구")
-st.write("엑셀 파일을 업로드하면 최근 후기 이전까지의 내용을 분석하여 ZIP으로 제공합니다.")
 
 uploaded_file = st.file_uploader("업체 리스트(sites.xlsx) 업로드", type=['xlsx'])
 
@@ -53,10 +57,10 @@ if uploaded_file:
         driver = get_driver()
         
         try:
-            # 로그인 로직
             status_text.text("🔑 로그인 중...")
             driver.get('https://kissinfo.co.kr/yc/bbs/login.php')
             time.sleep(3)
+            # ✅ By.NAME 사용 시 오류 없도록 수정
             driver.find_element(By.NAME, "mb_id").send_keys('saturn')
             driver.find_element(By.NAME, "mb_password").send_keys('3022')
             driver.find_element(By.XPATH, "//button[text()='로그인']").click()
@@ -72,7 +76,7 @@ if uploaded_file:
                 driver.get(url)
                 time.sleep(7)
 
-                # DOM 편집 (최근 후기 삭제 및 스크립트 제거)
+                # DOM 편집 로직 (이전과 동일)
                 driver.execute_script("""
                     var target = document.evaluate("//*[contains(text(), '최근 후기')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
                     if (target) {
@@ -90,7 +94,7 @@ if uploaded_file:
                     document.querySelectorAll('script').forEach(s => s.remove());
                 """)
 
-                # 이미지 다운로드 및 로컬 경로 수정
+                # 이미지 다운로드 및 로컬 경로 수정 (이전과 동일)
                 img_tags = driver.find_elements(By.TAG_NAME, "img")
                 for j, img in enumerate(img_tags):
                     src = img.get_attribute("src")
@@ -105,14 +109,12 @@ if uploaded_file:
                             driver.execute_script(f"arguments[0].src = '{img_dir_name}/{img_name}';", img)
                     except: continue
 
-                # HTML 저장
                 final_html = driver.page_source
                 with open(os.path.join(base_save_path, f"{site_name}.html"), "w", encoding="utf-8") as f:
                     f.write(final_html)
                 
                 progress_bar.progress((i + 1) / len(target_sites))
 
-            # ZIP 압축
             shutil.make_archive(base_save_path, 'zip', base_save_path)
             
             with open(f"{base_save_path}.zip", "rb") as fp:
