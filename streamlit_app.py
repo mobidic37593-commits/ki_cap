@@ -20,11 +20,11 @@ def get_driver():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     
-    # ✅ 브라우저 부하 감소: 이미지 렌더링 끄기 (타임아웃 방지 핵심)
-    options.add_argument('--blink-settings=imagesEnabled=false')
-    # ✅ 컨테이너 환경 통신 안정화
+    # ✅ 핵심: 네트워크 포트 대신 파이프를 사용하여 로컬 통신 타임아웃 방지
     options.add_argument('--remote-debugging-pipe')
-    # ✅ 페이지가 어느 정도 로드되면 즉시 제어권 획득
+    
+    # ✅ 리소스 최적화: 불필요한 이미지/애니메이션 로딩 방지
+    options.add_argument('--blink-settings=imagesEnabled=false')
     options.page_load_strategy = 'eager'
     
     options.binary_location = "/usr/bin/chromium"
@@ -35,10 +35,12 @@ def get_driver():
     }
     options.add_experimental_option("mobileEmulation", mobile_emulation)
     
+    # ✅ webdriver-manager 설정
     service = Service(ChromeDriverManager(chrome_type=ChromeType.CHROMIUM).install())
+    
     driver = webdriver.Chrome(service=service, options=options)
     
-    # ✅ 대기 시간 대폭 연장 (300초)
+    # ✅ 타임아웃 제한을 5분으로 확장
     driver.set_page_load_timeout(300)
     driver.set_script_timeout(300)
     return driver
@@ -80,12 +82,9 @@ if uploaded_file:
                 try:
                     status_text.text(f"⏳ [{i+1}/{len(target_sites)}] {site_name} 처리 중...")
                     
-                    img_dir_name = f"{site_name}_images"
-                    img_dir_path = os.path.join(base_save_path, img_dir_name)
-                    os.makedirs(img_dir_path, exist_ok=True)
-
+                    # ✅ 개별 페이지 접속 시도 시 타임아웃 예외 처리 강화
                     driver.get(url)
-                    time.sleep(8) # 페이지 렌더링 대기
+                    time.sleep(10) # 렌더링을 위한 물리적 대기시간 확보
 
                     # ✅ DOM 편집: 후기 삭제, 공백 제한, 스크립트 제거
                     driver.execute_script("""
@@ -159,7 +158,13 @@ if uploaded_file:
                 )
             st.success("✨ 모든 작업이 완료되었습니다! 위 버튼을 눌러 다운로드하세요.")
 
+        except Exception as inner_e:
+                    st.warning(f"⚠️ {site_name} 사이트 응답 지연으로 건너뜁니다.")
+                    # 브라우저 세션 유지를 위해 가벼운 페이지로 이동 시도
+                    driver.get("about:blank")
+                    continue
         except Exception as e:
             st.error(f"❌ 치명적 오류 발생: {str(e)}")
         finally:
             driver.quit()
+
